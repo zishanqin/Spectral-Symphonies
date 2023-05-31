@@ -47,8 +47,9 @@ python main.py --mode train --load-npz-dir .
 ```
 
 ### Train with loaded model
+For example, if we load model from `saved_models` at epoch 18000:
 ```
-python main.py --mode train --load-npz-dir . --load-model-dir saved_models 
+python main.py --mode train --load-npz-dir . --load-ckpt saved_models --ckpt_epoch 18000
 ```
 
 ### Train with incomplete features
@@ -59,7 +60,7 @@ python main.py --mode train --load-npz-dir . --selected-features DMFCC MFCC
 
 ### Test with loaded model
 ```
-python main.py --mode test --load-npz-dir . --load-model-dir saved_models
+python main.py --mode test --load-npz-dir . -load-ckpt saved_models
 ```
 
 In addition to those, we also have the following setups.
@@ -68,7 +69,8 @@ In addition to those, we also have the following setups.
 |-------------------------|----------------------------------------------------------------------|----------------|
 | `--mode`                | Mode: train or test                                                  |                |
 | `--load-npz-dir`        | Path to load `train.npz` and `test.npz`                              |                |
-| `--load-model-dir`      | Directory that stores models to load (with 3 h5 files)               |                |
+| `--load-ckpt`           | Directory that stores model checkpoint to load                       | ""             |
+| `--ckpt_epoch`          | The epoch number for resuming training and Testing                   | None           |
 | `--sample-size`         | Sampling size                                                        | 200            |
 | `--epoch-num`           | Number of epochs                                                     | 20000          |
 | `--class-num`           | Number of classes                                                    | 25             |
@@ -76,6 +78,7 @@ In addition to those, we also have the following setups.
 | `--L-reduced-dim`       | Reduced dimension for L (None for original dimension)                | 78             |
 | `--F-reduced-dim`       | Reduced dimension for F (None for original dimension)                | None           |
 | `--selected-features`   | Names of selected features (choices: MFCC, DMFCC, FBC)               | MFCC DMFCC FBC |
+
 
 
 ## Features
