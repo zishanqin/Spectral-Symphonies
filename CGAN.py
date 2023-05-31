@@ -6,9 +6,10 @@ from keras.layers import LeakyReLU
 from keras.models import Sequential, Model
 from tensorflow.keras.optimizers.legacy import Adam
 import numpy as np
+import os
 
 class CGAN():
-    def __init__(self,L_num:int,F_num:int,channels_num:int,num_classes:int,latent_dim=100):
+    def __init__(self,L_num:int,F_num:int,channels_num:int,num_classes:int, channel_name,latent_dim=100):
         """
         Initialize the CGAN model.
         
@@ -20,7 +21,6 @@ class CGAN():
             num_classes (int): Class number.
             latent_dimension (int): Number of latent dimension (default as 100).
         """
-        
         # Input shape
         self.L_num = L_num
         self.F_num = F_num
@@ -28,6 +28,8 @@ class CGAN():
         self.feature_shape = (self.L_num, self.F_num, self.channels_num)
         self.num_classes = num_classes
         self.latent_dim = latent_dim
+        self.channel_name = channel_name
+        
 
         # Set the optimizer
         optimizer = Adam(0.0002, 0.5)
@@ -61,22 +63,32 @@ class CGAN():
         self.combined.compile(loss=[
            'binary_crossentropy'],
             optimizer=optimizer)
+        
+        self.checkpoint = tf.train.Checkpoint(g_optimizer=optimizer,
+                                              d_optimizer=optimizer,
+                                              generator=self.generator,
+                                              discriminator=self.discriminator,
+                                              combined=self.combined,
+                                              )
+        ckpt_save_dir="./saved_model/"+channel_name+"/"
+        self.manager = tf.train.CheckpointManager(self.checkpoint, ckpt_save_dir,max_to_keep=None)
     
-    
-    def update_model(self,g_path,d_path,c_path):
+    def update_model(self,path,num_ckpts,ind_ckpt):
         """
         Load existing trained model.
         
         Args:
             self (CGAN): The CGAN model.
-            g_path (str): Path to load G
-            d_path (str): Path to load D
-            c_path (str): Path to load combined model
+            path (str): Path to load the saved models.
+            num_ckpts (int): The number of recorded checkpoints in previous training
+            ind_ckpt (int): The index of checkpoint to resume training
         """
-        d = tf.keras.models.load_model(d_path) # Load discriminator
-        g = tf.keras.models.load_model(g_path) # Load generator
-        c = tf.keras.models.load_model(c_path) # Load conbined model
-        return d,g,c
+        ckpts_dir = path.split("~")[0]
+        all_ckpts = tf.train.get_checkpoint_state(ckpts_dir).all_model_checkpoint_paths[-1*num_ckpts:]
+        ckpt_target = all_ckpts[ind_ckpt-1]
+        print("Load the checkpoint: ", ckpt_target)
+        self.checkpoint.restore(ckpt_target).expect_partial()
+
 
     def build_generator(self):
         """

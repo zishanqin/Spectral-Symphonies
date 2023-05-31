@@ -6,8 +6,9 @@ import numpy as np
 import csv
 import tqdm
 import os
+import json
 
-def train(cgan, X_train, y_train, X_test, y_test, epochs, batch_size, sample_interval, channel_name, class_num):
+def train(cgan, X_train, y_train, X_test, y_test, epochs, batch_size, sample_interval, class_num):
     """
     Train the CGAN model.
     
@@ -27,7 +28,7 @@ def train(cgan, X_train, y_train, X_test, y_test, epochs, batch_size, sample_int
     # Adversarial ground truths
     valid = np.ones((batch_size, 1))
     fake = np.zeros((batch_size, 1))
-
+    
     # Set callbacks
     callbacks = tf.keras.callbacks.CallbackList(
         None,
@@ -39,7 +40,15 @@ def train(cgan, X_train, y_train, X_test, y_test, epochs, batch_size, sample_int
         steps=1
     )
     callbacks.on_train_begin()
-
+    
+    # Set up training record file
+    record = {
+        'sample_interval': sample_interval,
+        'recorded_ckpts': 0
+    }
+    with open('training_record.json', "w") as outfile:
+        json.dump(record, outfile)
+    
     for epoch in range(epochs):
         callbacks.on_epoch_begin(epoch)
         
@@ -61,26 +70,32 @@ def train(cgan, X_train, y_train, X_test, y_test, epochs, batch_size, sample_int
         g_loss = cgan.combined.train_on_batch([noise, sampled_labels], valid)
 
         # Print the training progress
-        print("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch, d_loss[0], 100 * d_loss[1], g_loss))
+        print("%d [D loss: %f, acc.: %.2f%%] [G loss: %f]" % (epoch+1, d_loss[0], 100 * d_loss[1], g_loss))
 
         logs = {"train_loss": d_loss[0], "train_acc": d_loss[1]}
         
         # Save model and statistical result every $sample_interval$ epochs
-        if epoch % sample_interval == 0:
-            table_name = 'tabular_result/train/' + channel_name + '_test.csv'
+        if (epoch+1) % sample_interval == 0:
+            table_name = 'tabular_result/train/' + cgan.channel_name + '_test.csv'
             # Create the table if it doesn't exist
             if not os.path.exists(table_name):
                 open(table_name, 'w').close()
             with open(table_name, 'a', newline='') as csvfile:
                 csv_writer = csv.writer(csvfile, dialect='unix')
-                cgan.generator.save("saved_model/" + channel_name + "_" + str(epoch) + "_G.h5")
-                cgan.discriminator.save("saved_model/" + channel_name + "_" + str(epoch) + '_D.h5')
-                cgan.combined.save("saved_model/" + channel_name + "_" + str(epoch) + '_C.h5')
+                #save model
+                ckpt_save_path = cgan.manager.save()
+                print (f'Saving checkpoint for epoch {epoch+1} at {ckpt_save_path}')
+                # Opening training record file, increment the recorded ckpts number
+                with open('training_record.json', 'r') as openfile:
+                    record = json.load(openfile)
+                    record['recorded_ckpts'] += 1
+                with open('training_record.json', 'w') as outfile:
+                    json.dump(record, outfile)
                 
                 # Perform prediction for the testing samples
                 valid_all = np.ones((y_test.shape[0], 1))
                 csv_row = cgan.discriminator.evaluate(x=[X_test, y_test], y=valid_all)
-                csv_row.insert(0, str(epoch))
+                csv_row.insert(0, str(epoch+1))
                 csv_writer.writerow(csv_row)
                 csvfile.close()
         
@@ -90,10 +105,10 @@ def train(cgan, X_train, y_train, X_test, y_test, epochs, batch_size, sample_int
     # Plot the training accuracy and loss
     history = cgan.discriminator.history
     if history is not None:
-        utils.plot_history(history, channel_name)
+        utils.plot_history(history, cgan.channel_name)
     print("----------------------Training complete--------------------")
 
-def test(cgan, X_test, y_test, channel_name, class_num):
+def test(cgan, X_test, y_test, class_num):
     """
     Test the CGAN model.
     
@@ -101,12 +116,12 @@ def test(cgan, X_test, y_test, channel_name, class_num):
         cgan (CGAN): The CGAN model.
         X_test (ndarray): Testing data features.
         y_test (ndarray): Testing data labels.
-        channel_name (str): Name of the channel.
+        cgan.channel_name (str): Name of the channel.
         class_num (int): Number of classes.
     """
     print("----------------------Test begins--------------------")
     
-    with open(f'tabular_result/test/prediction_confidence_{channel_name}.csv', 'w', newline='') as csvfile:
+    with open(f'tabular_result/test/prediction_confidence_{cgan.channel_name}.csv', 'w', newline='') as csvfile:
         csv_writer = csv.DictWriter(csvfile, dialect='unix', fieldnames=['idx', 'true_label', 'predicted_label', 'score'])
         csv_writer.writeheader()
         
@@ -133,7 +148,7 @@ def test(cgan, X_test, y_test, channel_name, class_num):
 if __name__ == '__main__':
     # Load the arguments
     args = utils.parse_arguments()
-    model_path = args.load_model_dir
+    model_path = args.load_ckpt
     npz_dir_path = args.load_npz_dir
     channel_name = '_'.join(args.selected_features)
 
@@ -172,31 +187,21 @@ if __name__ == '__main__':
     selected_indices = [feature_indices[feature] for feature in args.selected_features if feature in feature_indices]
     X_train = X_train[:, :, :, selected_indices]
     X_test = X_test[:, :, :, selected_indices]
-
+    
     # Load existing model (if provided)
-    if model_path == '':
-        cgan = CGAN.CGAN(L_num=X_train.shape[1], F_num=X_train.shape[2], channels_num=len(args.selected_features),
-                        num_classes=args.class_num)
-    elif os.path.exists(model_path):
-        cgan = CGAN.CGAN(L_num=X_train.shape[1], F_num=X_train.shape[2], channels_num=len(args.selected_features),
-                        num_classes=args.class_num)
-        files = os.listdir(model_path)
-        if len(files) != 3:
-            raise ValueError(f"You have either missed one h5 file for D, G, and combine, or have included more than one h5 file for each.")
-        else:
-            g_path, d_path, c_path = None, None, None
-            for file in files:
-                if file.endswith("G.h5"):
-                    g_path = os.path.join(model_path, file)
-                if file.endswith("D.h5"):
-                    d_path = os.path.join(model_path, file)
-                if file.endswith("C.h5"):
-                    c_path = os.path.join(model_path, file)
-            if g_path is not None and d_path is not None and c_path is not None:
-                cgan.update_model(g_path, d_path, c_path)
-            else:
-                raise ValueError(f"Missing the h5 file for one of the models in {model_path}.")
-    else:
+    # Initialize model
+    cgan = CGAN.CGAN(L_num=X_train.shape[1], F_num=X_train.shape[2], channels_num=len(args.selected_features),
+                        num_classes=args.class_num, channel_name=channel_name)
+    if os.path.exists(model_path):
+        resume_epoch = int(args.ckpt_epoch)
+        # Load the sample interval and recorded ckpts of the previous training model
+        with open('training_record.json', 'r') as openfile:
+            record = json.load(openfile)
+            num_ckpts = record['recorded_ckpts']
+            prev_sample_interval = record['sample_interval']
+        ind_ckpt = int(resume_epoch / prev_sample_interval)
+        cgan.update_model(model_path, num_ckpts, ind_ckpt)
+    elif model_path != '':
         raise FileNotFoundError(f"Model '{model_path}' does not exist")
 
     # Create empty directory to save models
@@ -210,12 +215,11 @@ if __name__ == '__main__':
             os.makedirs('tabular_result/train')
         if not os.path.exists('graphical_result'):
             os.makedirs('graphical_result')
-        train(cgan, X_train, y_train, X_test, y_test, args.epoch_num, args.batch_size, args.sample_size,
-              channel_name, args.class_num)
+        train(cgan, X_train, y_train, X_test, y_test, args.epoch_num, args.batch_size, args.sample_size, args.class_num)
     elif args.mode == 'test':
         # Create empty directory to log statistics
         if not os.path.exists('tabular_result/test'):
             os.makedirs('tabular_result/test')
-        test(cgan, X_test, y_test, channel_name, args.class_num)
+        test(cgan, X_test, y_test, args.class_num)
     else:
         raise ValueError(f"You need to set the mode to either train or test.")

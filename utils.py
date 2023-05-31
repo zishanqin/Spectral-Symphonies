@@ -14,7 +14,8 @@ def parse_arguments():
     # Input configuration
     parser.add_argument('--mode', choices=['train', 'test'], help='Mode: train or test')
     parser.add_argument('--load-npz-dir', type=str, help='Path to load train.npz and test.npz')
-    parser.add_argument('--load-model-dir', type=str, help='Directory that stores models to load (with 3 h5 files storing D, G and combine models)', default='')
+    parser.add_argument('--load-ckpt', type=str, help='Path to load checkpoint', default='')
+    parser.add_argument('--ckpt-epoch', help='Number of epoch to select, used for resuming train and testing', default=None)
     
     # Training configuration
     parser.add_argument('--sample-size', type=int, help='Sampling size', default=200)
@@ -26,7 +27,7 @@ def parse_arguments():
     parser.add_argument('--L-reduced-dim', help='Reduced dimension for L (None for original dimension)', default=78)
     parser.add_argument('--F-reduced-dim', help='Reduced dimension for F (None for original dimension)', default=None)
     parser.add_argument('--selected-features', type=str,nargs="+",choices=['MFCC', 'DMFCC', 'FBC'], help='Names of selected feature', default=['MFCC', 'DMFCC', 'FBC'])
-
+    
     # Parse arguments
     args = parser.parse_args()
     
