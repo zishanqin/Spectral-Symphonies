@@ -15,7 +15,7 @@
 
 ## Project Overview
 
-In this paper, we propose a Mandarin speaker recognition system that utilises spectral features, including Mel-Frequency Cepstral Coefficients (MFCC), Delta-Mel-Frequency Cepstral Coefficients (DMFCC) and Filter Bank Coefficients (FBC). We employ a conditional Generative Adversarial Network (CGAN), conditioned on known speaker labels, for the speaker classification. We evaluated our proposed system using the THCHS-30 dataset, a labelled Mandarin audio dataset. The results of our evaluation are promising, demonstrating the system’s ability to identify and distinguish speakers both within and outside the domain.
+In this project, we propose a Mandarin speaker recognition system that utilises spectral features, including Mel-Frequency Cepstral Coefficients (MFCC), Delta-Mel-Frequency Cepstral Coefficients (DMFCC) and Filter Bank Coefficients (FBC). We employ a conditional Generative Adversarial Network (CGAN), conditioned on known speaker labels, for the speaker classification. We evaluated our proposed system using the THCHS-30 dataset, a labelled Mandarin audio dataset. The results of our evaluation are promising, demonstrating the system’s ability to identify and distinguish speakers both within and outside the domain.
 
 ## Installation
 
